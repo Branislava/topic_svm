@@ -6,12 +6,14 @@ import pickle
 from sklearn.pipeline import make_pipeline
 from sklearn.svm import LinearSVC
 from sklearn.svm import SVC
+from sklearn.model_selection import KFold
 from sklearn.metrics import precision_recall_fscore_support as score
 from sklearn.metrics import accuracy_score
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.metrics import classification_report
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import cross_val_score
 import time
 from sklearn.preprocessing import FunctionTransformer
 from nltk.corpus import wordnet as wn
@@ -213,4 +215,35 @@ class ClassificationModel:
         model = pickle.load(pkl_file)
         pkl_file.close()
 
-        return model 
+        return model
+    
+    # cross-validation method
+    def cross_validation(self, folds=5):
+        kf = KFold(n_splits=folds, random_state=None, shuffle=True)
+        average_accuracy = 0
+        k = 1
+        for train_index, test_index in kf.split(self.train_X):
+            train_y = [self.train_Y[i] for i in train_index]
+            gram_train = self.extract_sub_gram(train_index, train_index)
+
+            test_y = [self.train_Y[i] for i in test_index]
+            gram_test = self.extract_sub_gram(test_index, train_index)
+            
+            self.pipeline.fit(gram_train, train_y)
+            pred_y = self.pipeline.predict(gram_test)
+            average_accuracy += accuracy_score(test_y, pred_y)
+            print("=============== " + str(k) + ". fold finished ==============")
+            k += 1
+        print("Average accuracy in " + str(folds) + " folds: " + str(average_accuracy/folds))
+            
+    # helper function - extract certain values from gram matrix
+    def extract_sub_gram(self, first, second):
+        N = len(first)
+        M = len(second)
+        gram = numpy.zeros((N, M))
+        
+        for i in range(0, N):
+            for j in range(0, M):
+                gram[i][j] = self.gram_train[first[i]][second[j]]
+        
+        return gram
