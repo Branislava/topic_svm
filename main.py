@@ -1,13 +1,10 @@
 import sys
 
-from sklearn.metrics import precision_recall_fscore_support as score
-from sklearn.metrics import classification_report
-
 from dataset import Dataset
 from classificationmodel import ClassificationModel as cm
 
 import warnings
-warnings.filterwarnings("ignore",category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # main function
 if __name__ == "__main__":
