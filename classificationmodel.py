@@ -10,6 +10,9 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import precision_recall_fscore_support as score
 from sklearn.metrics import accuracy_score
 from sklearn.multiclass import OneVsRestClassifier
+from sklearn.metrics import classification_report
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import StratifiedShuffleSplit
 import time
 
 from nltk.corpus import wordnet as wn
@@ -45,7 +48,6 @@ class ClassificationModel:
         self.name = 'words_kartelj_svm'
 
     global kartelj_kernel
-
     def kartelj_kernel(p):
         # actually, every process makes its own copy of cache and these variables, but still it can have impact
         global use_cache, cache, calls, miss
@@ -82,14 +84,14 @@ class ClassificationModel:
                         elif str(n2) + str(n1) in cache:
                             curr_similarity = cache[str(n2) + str(n1)]
                         else:
-                            curr_similarity = n1.wup_similarity(n2)
+                            curr_similarity = n1.path_similarity(n2)
                             cache[str(n1) + str(n2)] = curr_similarity
                             miss += 1
                         calls += 1
                         # if calls%100000==0:
                         #    print "Miss ratio: %",round(miss*100/calls), "total calls",calls
                     else:
-                        curr_similarity = n1.wup_similarity(n2)
+                        curr_similarity = n1.path_similarity(n2)
                     if curr_similarity > max_similarity:
                         max_similarity = curr_similarity
                         maxi = i
@@ -118,7 +120,7 @@ class ClassificationModel:
         M = len(second)
         same = (N == M)
         gram = numpy.zeros((N, M))
-        print("Executing in parallel on " + str(mp.cpu_count()) + "cores")
+        print("Executing in parallel on " + str(mp.cpu_count()) + " cores")
         pool = mp.Pool(processes=mp.cpu_count())
         load_per_core = 25
         load = load_per_core * mp.cpu_count()
@@ -244,3 +246,20 @@ class ClassificationModel:
                 gram[i][j] = self.gram_train[first[i]][second[j]]
 
         return gram
+
+    # tune method
+    def tune(self):
+        c_range = numpy.logspace(-2, 10, 13)
+        for C in c_range:
+
+            # create svm with this C
+            clf = OneVsRestClassifier(SVC(C=C, class_weight='auto', kernel='precomputed'))
+            # create support vectors
+            clf.fit(self.gram_train, self.train_Y)
+            # get predictions
+            predictions = clf.predict(self.gram_test)
+            # see accuracy
+            acc = accuracy_score(self.test_Y, predictions)
+
+            print("C = " + str(C) + ", accuracy = " + str(acc))
+            print("-----------------------------------")

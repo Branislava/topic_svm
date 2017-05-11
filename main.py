@@ -11,13 +11,14 @@ if __name__ == "__main__":
 
     # checking number of args
     if len(sys.argv) < 3:
-        print("Usage: python main.py [-create dataset_binary] [-export export_path] [-cv folds_num] [-import import_path]")
+        print("Usage: python main.py [-create dataset_binary] [-export export_path] [-cv folds_num] [-import import_path] [-tune import_path]")
         exit(1)
 
     # examining options
     _create = False
     _export = False
     _import = False
+    _tune = False
     _cv = False
      
     model = None
@@ -42,6 +43,10 @@ if __name__ == "__main__":
         if sys.argv[i] == '-cv':
             _cv = True
             folds = int(sys.argv[i+1])
+            i += 1
+        if sys.argv[i] == '-tune':
+            _tune = True
+            import_path = sys.argv[i+1]
             i += 1
 
     # if create new model...
@@ -68,8 +73,18 @@ if __name__ == "__main__":
             model = cm.deserialize(import_path)
             print("Model imported from " + import_path)
         except NameError:
-            print('Error while importing model')        
-    
+            print('Error while importing model')
+
+    # if tune model...
+    if _tune:
+        try:
+            model = cm.deserialize(import_path)
+            print("Model imported from " + import_path)
+            print("Now tuning...")
+            model.tune()
+        except NameError:
+            print('Error while importing model')
+
     # if export model...
     if _create:
         try:
