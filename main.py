@@ -11,7 +11,7 @@ if __name__ == "__main__":
 
     # checking number of args
     if len(sys.argv) < 3:
-        print("Usage: python main.py [-create dataset_binary] [-export export_path] [-cv folds_num] [-import import_path] [-tune import_path]")
+        print("Usage: python main.py [-create dataset_binary C] [-export export_path] [-cv folds_num] [-import import_path] [-tune dataset_binary]")
         exit(1)
 
     # examining options
@@ -26,15 +26,17 @@ if __name__ == "__main__":
     export_path = ''
     import_path = ''
     folds = 5
+    C = 1
 
     for i in range(0, len(sys.argv)):
         if sys.argv[i] == '-create':
             _create = True
             dataset_binary_path = sys.argv[i+1]
-            i += 1
+            C = float(sys.argv[i+2])
+            i += 2
         if sys.argv[i] == '-import':
             _import = True
-            import_path = sys.argv[i+1]
+            import_path = sys.argv[i+1]            
             i += 1
         if sys.argv[i] == '-export':
             _export = True
@@ -46,7 +48,7 @@ if __name__ == "__main__":
             i += 1
         if sys.argv[i] == '-tune':
             _tune = True
-            import_path = sys.argv[i+1]
+            dataset_binary_path = sys.argv[i+1]
             i += 1
 
     # if create new model...
@@ -56,14 +58,7 @@ if __name__ == "__main__":
             dset = Dataset.deserialize(dataset_binary_path)
             print("Dataset loaded from " + dataset_binary_path)
             # building classification model object
-            model = cm(dset)
-            print("Model created")
-            # training model on training set
-            model.train()
-            print("Model trained on training set")
-            # testing model on test set
-            model.test('test_report.csv')
-            print("Model evaluated on test set")
+            model = cm(dset, C)
         except NameError:
             print('Error while creating model')
             
@@ -78,15 +73,14 @@ if __name__ == "__main__":
     # if tune model...
     if _tune:
         try:
-            model = cm.deserialize(import_path)
-            print("Model imported from " + import_path)
-            print("Now tuning...")
-            model.tune()
+            dset = Dataset.deserialize(dataset_binary_path)
+            print("Dataset loaded from " + dataset_binary_path)
+            cm.tune(dset)
         except NameError:
-            print('Error while importing model')
+            print('Error while importing dset or tuning')
 
     # if export model...
-    if _create:
+    if _export:
         try:
             model.serialize(export_path)
             print("Model exported to " + export_path)
