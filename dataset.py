@@ -3,9 +3,6 @@ import numpy
 import pickle
 import sys
 import re
-import xml.etree.ElementTree as ET
-from pandas import DataFrame
-from sklearn.utils import shuffle
 from nltk.corpus import wordnet as wn
 import time
 import multiprocessing as mp

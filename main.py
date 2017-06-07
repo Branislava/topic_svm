@@ -72,12 +72,9 @@ if __name__ == "__main__":
 
     # if tune model...
     if _tune:
-        try:
-            dset = Dataset.deserialize(dataset_binary_path)
-            print("Dataset loaded from " + dataset_binary_path)
-            cm.tune(dset)
-        except NameError:
-            print('Error while importing dset or tuning')
+    	dset = Dataset.deserialize(dataset_binary_path)
+    	print("Dataset loaded from " + dataset_binary_path)
+    	cm.tune(dset)
 
     # if export model...
     if _export:
