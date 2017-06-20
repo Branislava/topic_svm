@@ -9,21 +9,17 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import GridSearchCV
 
 from itertools import combinations
-
+import random
 
 class ClassificationModel:
     # constructor - for web snippets
-    def __init__(self, dataset, C=1):
-        # instances
+    def __init__(self, dataset, C=1, topics_path=''):
+        
+        # read data
         self.train_X, self.test_X = dataset.train_X, dataset.test_X
-        # class labels
         self.train_Y, self.test_Y = dataset.train_Y, dataset.test_Y
-        # gram matrices
         self.gram_train, self.gram_test = dataset.gram_train, dataset.gram_test
-
-        # maybe...
-        self.gram_train, self.gram_test = self.amplify_simmilarity(self.train_X, self.test_X, self.gram_train, self.gram_test)
-
+        
         # class labels
         self.labels = list(dataset.labels)
         # number of classes
@@ -33,46 +29,6 @@ class ClassificationModel:
         
         # train model on training set
         self.clf = self.create_train_test(C)
-
-    # idea: check coolocations
-    def amplify_simmilarity(self, train_set, test_set, train_gram, test_gram):
-
-        # extract coolocations from training set... coolocations within a snippet
-        train_snippets_coolocation = dict()
-        for i in range(0, len(train_set)):
-            snippet = train_set[i]
-            for word in snippet:
-                # for current word, add current snippet's index
-                if word not in train_snippets_coolocation:
-                    train_snippets_coolocation[word] = set()
-                train_snippets_coolocation[word].add(i)
-        print('Training-Coolocations stored')
-
-        # do it for train matrix
-        for cluster in train_snippets_coolocation.values():
-            # get all 2-sized combinations of a list
-            c = combinations(cluster, 2)
-            for comb in c:
-                # symmetrical
-                train_gram[comb[0]][comb[1]] += 1
-                train_gram[comb[1]][comb[0]] += 1
-        # diagonal: maximum
-        max_elem = train_gram.max()
-        for i in range(0, len(train_set)):
-            train_gram[i][i] = max_elem + 1
-        print('Training matrix amplified')
-
-        # do it for test matrix
-        for i in range(0, len(test_set)):
-            snippet = test_set[i]
-            for word in snippet:
-                if word in train_snippets_coolocation:
-                    cluster = train_snippets_coolocation[word]
-                    for j in cluster:
-                        test_gram[i][j] += 1
-        print('Test matrix amplified')
-
-        return train_gram, test_gram
 
     # create, train and test model
     def create_train_test(self, C=1):

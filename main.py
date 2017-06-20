@@ -56,7 +56,7 @@ if __name__ == "__main__":
         try:
             # reading dataset and extracting features
             dset = Dataset.deserialize(dataset_binary_path)
-            print("Dataset loaded from " + dataset_binary_path)
+            print("Dataset loaded from " + dataset_binary_path)          
             # building classification model object
             model = cm(dset, C)
         except NameError:
