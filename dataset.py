@@ -7,7 +7,6 @@ from nltk.corpus import wordnet as wn
 import time
 import multiprocessing as mp
 
-use_cache = True
 cache = {}
 cache_calls = 0
 cache_miss = 0
@@ -237,61 +236,26 @@ class Dataset:
         M = len(second)
         same = (N == M)
         gram = numpy.zeros((N, M))
-        print("Executing in parallel on " + str(mp.cpu_count()) + " cores")
-        pool = mp.Pool(processes=mp.cpu_count())
+        # leave one core free
+        proc_cnt = mp.cpu_count()-1
+        print("Executing in parallel on " + str(proc_cnt) + " cores")
+        pool = mp.Pool(processes=proc_cnt)
         load_per_core = 1
-        load = load_per_core * mp.cpu_count()
-        if same:
-            tot = N * (M + 1) / 2
-        else:
-            tot = N * M
+        load = load_per_core * proc_cnt
         finished = 0
         pairs = []
         indpairs = []
         
-        print N, M
-        
-        #if same:
+        print "Dimensions ", N,"x", M
         pairs = [(first[i],second[j], i, j) for i in range(0,N) for j in range(0,M)]
-        
-        print len(pairs)
         n = len(pairs)
         
         results = pool.imap(kartelj_kernel,pairs)
         for i in range(0,n):
-            print i, results.next()
-            #gram[pairs[i][0],pairs[i][1]] = results.next()
-        #    if i%100 is 0:
-        #        print "%s of %s calculated" % (i, n)
+            gram[pairs[i][2],pairs[i][3]] = results.next()
+            if i%1000 is 0:
+                print "%s out of %s calculated. time: %s" % (i, n, time.time()-start_time)
           
-        #i=0
-        #for r in results:
-        #    print i, r
-        #    i+=1
-        '''
-        for i in range(0, N):
-            if same:
-                lmt = i
-            else:
-                lmt = M - 1
-            j = 0
-            while j <= lmt:
-                pairs.append((first[i], second[j]))
-                indpairs.append((i, j))
-                if len(pairs) == 1:
-                    results = pool.map(kartelj_kernel, pairs)
-                    for k in range(0, len(indpairs)):
-                        p = indpairs[k]
-                        gram[p[0], p[1]] = results[k]
-                        if same:
-                            gram[p[1], p[0]] = results[k]
-                    finished += len(results)
-                    print("Finished " + str(finished) + " out of " + str(tot) + " elapsed time " + str(
-                        round(time.time() - start_time)))
-                    pairs = []
-                    indpairs = []
-                j += 1
-        '''
         pool.close()
         pool.join()
         
@@ -301,9 +265,8 @@ class Dataset:
     global kartelj_kernel
     def kartelj_kernel(p):
         # actually, every process makes its own copy of cache and these variables, but still it can have impact
-        global use_cache, cache, cache_calls, cache_miss, kernel_calls, total_time, temp_time
+        global use_cache, cache, cache_calls, cache_miss, kernel_calls
         
-        start = time.clock()
         x = p[0]
         y = p[1]
         #if i*%100 == 0:
@@ -312,12 +275,7 @@ class Dataset:
         # there are some short 1-word snippets that weren't recognized by wordnet
         
         if len(x) == 0 or len(y) == 0:
-            total_time+=(time.clock()-start)
             return 0
-
-        # if they are the same snippets
-        #if x == y:
-        #    return 1
 
         # taking zero synsets in advance, to avoid multiple synsets calls
         xs = set([wn.synsets(t)[0] for t in x])
@@ -331,49 +289,39 @@ class Dataset:
         sum_max_pairwise_similarities = len(same)
         pairs_count = len(same)
 
-        start2 = time.clock()
         while len(xs) > 0 and len(ys) > 0:
             max_similarity = -1
             maxx = None
             maxy = None
             for n1 in xs:
                 for n2 in ys:
-                    if use_cache:
-                        if str(n1) + str(n2) in cache:
-                            curr_similarity = cache[str(n1) + str(n2)]
-                        elif str(n2) + str(n1) in cache:
-                            curr_similarity = cache[str(n2) + str(n1)]
-                        else:
-                            curr_similarity = n1.path_similarity(n2)
-                            if curr_similarity is None:
-                                curr_similarity = 0
-                            cache[str(n1) + str(n2)] = curr_similarity
-                            cache_miss += 1
-                        cache_calls += 1
-                        if cache_calls%100000==0 and cache_calls>0:
-                            print "Kernel calls", kernel_calls,"Kernel time", total_time, "Temp time",temp_time,  "Misses", cache_miss , " out of " , cache_calls, "calls", cache_miss*100.0/cache_calls
+                    if str(n1) + str(n2) in cache:
+                        curr_similarity = cache[str(n1) + str(n2)]
+                    elif str(n2) + str(n1) in cache:
+                        curr_similarity = cache[str(n2) + str(n1)]
                     else:
                         curr_similarity = n1.path_similarity(n2)
                         if curr_similarity is None:
                             curr_similarity = 0
+                        cache[str(n1) + str(n2)] = curr_similarity
+                        cache_miss += 1
+                    cache_calls += 1
+                    if cache_calls%1000000==0 and cache_calls>0:
+                        print "Cache miss ratio: ", cache_miss*100.0/cache_calls
                     if curr_similarity > max_similarity:
                         max_similarity = curr_similarity
                         maxx = n1
-                        maxy = n2
-                        
+                        maxy = n2       
             xs.remove(maxx)
             ys.remove(maxy)
 
             # add them up
             pairs_count += 1
             sum_max_pairwise_similarities += max_similarity
-
-        temp_time+=(time.clock()-start2)
+            
         average = 0
         if pairs_count > 0:
             average = sum_max_pairwise_similarities / pairs_count
-
-        total_time+=(time.clock()-start)
         return average
 
     # serialize (i.e. write into binary file)
