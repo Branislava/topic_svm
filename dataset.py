@@ -7,10 +7,14 @@ from nltk.corpus import wordnet as wn
 import time
 import multiprocessing as mp
 
-use_cache = False
+use_cache = True
 cache = {}
-calls = 0
-miss = 0
+cache_calls = 0
+cache_miss = 0
+kernel_calls = 0
+
+total_time = 0
+temp_time = 0
 
 class Dataset:
     # class constructor - web snippets dataset
@@ -227,6 +231,7 @@ class Dataset:
     # precomputed training gram matrix
     @staticmethod
     def calculate_gram_matrix_parallel(first, second):
+        global calls, miss
         start_time = time.time()
         N = len(first)
         M = len(second)
@@ -243,6 +248,27 @@ class Dataset:
         finished = 0
         pairs = []
         indpairs = []
+        
+        print N, M
+        
+        #if same:
+        pairs = [(first[i],second[j], i, j) for i in range(0,N) for j in range(0,M)]
+        
+        print len(pairs)
+        n = len(pairs)
+        
+        results = pool.imap(kartelj_kernel,pairs)
+        for i in range(0,n):
+            print i, results.next()
+            #gram[pairs[i][0],pairs[i][1]] = results.next()
+        #    if i%100 is 0:
+        #        print "%s of %s calculated" % (i, n)
+          
+        #i=0
+        #for r in results:
+        #    print i, r
+        #    i+=1
+        '''
         for i in range(0, N):
             if same:
                 lmt = i
@@ -265,7 +291,7 @@ class Dataset:
                     pairs = []
                     indpairs = []
                 j += 1
-
+        '''
         pool.close()
         pool.join()
         
@@ -275,33 +301,42 @@ class Dataset:
     global kartelj_kernel
     def kartelj_kernel(p):
         # actually, every process makes its own copy of cache and these variables, but still it can have impact
-        global use_cache, cache, calls, miss
+        global use_cache, cache, cache_calls, cache_miss, kernel_calls, total_time, temp_time
+        
+        start = time.clock()
         x = p[0]
         y = p[1]
+        #if i*%100 == 0:
+        #    print 'Doing ', id
+        kernel_calls+=1
         # there are some short 1-word snippets that weren't recognized by wordnet
+        
         if len(x) == 0 or len(y) == 0:
+            total_time+=(time.clock()-start)
             return 0
 
         # if they are the same snippets
-        if x == y:
-            return 1
-
-        # input: two snippets represented as words list
-        # x, y - list of words
-        sum_max_pairwise_similarities = 0
-        pairs_count = 0
+        #if x == y:
+        #    return 1
 
         # taking zero synsets in advance, to avoid multiple synsets calls
-        xs = [wn.synsets(t)[0] for t in x]
-        ys = [wn.synsets(t)[0] for t in y]
+        xs = set([wn.synsets(t)[0] for t in x])
+        ys = set([wn.synsets(t)[0] for t in y])
+        
+        same =  xs & ys
+        
+        xs = xs - same
+        ys = ys - same
+        
+        sum_max_pairwise_similarities = len(same)
+        pairs_count = len(same)
 
+        start2 = time.clock()
         while len(xs) > 0 and len(ys) > 0:
-            max_similarity = 0
-            maxi = -1
-            maxj = -1
-            i = 0
+            max_similarity = -1
+            maxx = None
+            maxy = None
             for n1 in xs:
-                j = 0
                 for n2 in ys:
                     if use_cache:
                         if str(n1) + str(n2) in cache:
@@ -310,32 +345,35 @@ class Dataset:
                             curr_similarity = cache[str(n2) + str(n1)]
                         else:
                             curr_similarity = n1.path_similarity(n2)
+                            if curr_similarity is None:
+                                curr_similarity = 0
                             cache[str(n1) + str(n2)] = curr_similarity
-                            miss += 1
-                        calls += 1
-                        if calls%100000==0:
-                            print("Miss ratio: " + str(round(miss*100/calls)) + " total calls " + str(calls))
+                            cache_miss += 1
+                        cache_calls += 1
+                        if cache_calls%100000==0 and cache_calls>0:
+                            print "Kernel calls", kernel_calls,"Kernel time", total_time, "Temp time",temp_time,  "Misses", cache_miss , " out of " , cache_calls, "calls", cache_miss*100.0/cache_calls
                     else:
                         curr_similarity = n1.path_similarity(n2)
+                        if curr_similarity is None:
+                            curr_similarity = 0
                     if curr_similarity > max_similarity:
                         max_similarity = curr_similarity
-                        maxi = i
-                        maxj = j
-                    j += 1
-                i += 1
-
-            # print xs[maxi], ys[maxj], max_similarity
-            del xs[maxi]
-            del ys[maxj]
+                        maxx = n1
+                        maxy = n2
+                        
+            xs.remove(maxx)
+            ys.remove(maxy)
 
             # add them up
             pairs_count += 1
             sum_max_pairwise_similarities += max_similarity
 
+        temp_time+=(time.clock()-start2)
         average = 0
         if pairs_count > 0:
             average = sum_max_pairwise_similarities / pairs_count
 
+        total_time+=(time.clock()-start)
         return average
 
     # serialize (i.e. write into binary file)
